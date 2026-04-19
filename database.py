@@ -49,7 +49,6 @@ class DBManager:
         try:
             with sqlite3.connect(self.db_name) as conn:
                 cursor = conn.cursor()
-                # Binding fixed here: (user_id,)
                 cursor.execute("INSERT OR IGNORE INTO users (user_id, balance) VALUES (?, 0.0)", (user_id,))
                 cursor.execute("UPDATE users SET balance = balance + ? WHERE user_id = ?", (amount, user_id))
                 cursor.execute("INSERT INTO transactions (user_id, amount, type) VALUES (?, ?, ?)", (user_id, amount, t_type))
