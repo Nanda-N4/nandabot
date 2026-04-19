@@ -40,10 +40,7 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_id == int(ADMIN_ID) and not update.business_message: return
 
     if msg.photo:
-        # User ဆီ ပို့မယ့် Message ကို ID မှတ်ထားမယ်
         reply_msg = await msg.reply_text("✅ ပြေစာရရှိပါသည်။ Admin အတည်ပြုရန် စောင့်ပေးပါ။ 🙏")
-        
-        # Admin ဆီကို ပို့တဲ့အခါ User ရဲ့ message_id ကိုပါ callback data မှာ ထည့်ပေးမယ်
         await context.bot.send_photo(
             chat_id=ADMIN_ID, photo=msg.photo[-1].file_id, 
             caption=f"💰 **Top-up Request**\nFrom: {update.effective_user.first_name}\nID: `{user_id}`",
@@ -75,25 +72,15 @@ async def handle_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
             
         amt = float(parts[2])
-        user_msg_id = int(parts[3]) # User ဆီက reply စာကို edit ဖို့ ID
+        user_msg_id = int(parts[3])
 
         if db.update_balance(target_id, amt, "TOPUP_APPROVE"):
-            # ၁။ User ဆီက "ပြေစာရရှိပါသည်" ဆိုတဲ့စာကို ဝယ်ယူရန် Menu အဖြစ် Edit လုပ်မယ်
             bal = db.get_balance(target_id)
             success_msg = f"✅ Credit **{amt} Ks** ဖြည့်သွင်းမှု အောင်မြင်ပါသည်။\n💰 လက်ရှိလက်ကျန်: **{bal} Ks**"
             try:
-                await context.bot.edit_message_text(
-                    chat_id=target_id,
-                    message_id=user_msg_id,
-                    text=success_msg,
-                    reply_markup=get_main_keyboard(target_id),
-                    parse_mode='Markdown'
-                )
+                await context.bot.edit_message_text(chat_id=target_id, message_id=user_msg_id, text=success_msg, reply_markup=get_main_keyboard(target_id), parse_mode='Markdown')
             except:
-                # Edit မရရင် စာအသစ် ပို့မယ်
                 await context.bot.send_message(target_id, success_msg, reply_markup=get_main_keyboard(target_id), parse_mode='Markdown')
-
-            # ၂။ Admin ဆီက caption ကို edit လုပ်မယ်
             await query.edit_message_caption(caption=f"{query.message.caption}\n\n✅ **Approved {amt} Ks!**")
 
     elif data == 'topup_menu':
@@ -125,7 +112,7 @@ async def handle_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == 'user_buy':
         prods = db.get_products()
         kb = [[InlineKeyboardButton(f"{p['name']} - {p['price']} Ks", callback_data=f"confirm_buy_{p['id']}")] for p in prods]
-        kb.append([InlineKeyboardButton("🔙 Back", callback_data='back_to_main') | InlineKeyboardButton("🔙 Back", callback_data='back_to_main')]]
+        kb.append([InlineKeyboardButton("🔙 Back", callback_data='back_to_main')])
         await query.edit_message_text("🏷️ **Product ရွေးချယ်ပါ**", reply_markup=InlineKeyboardMarkup(kb), parse_mode='Markdown')
 
     elif data.startswith('confirm_buy_'):
