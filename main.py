@@ -7,11 +7,11 @@ from database import DBManager
 from xui_api import MultiXUI
 import admin
 
-# --- Logging Setup ---
+# --- Logging ---
 logging.basicConfig(format='%(asctime)s - %(name)s - %(message)s', level=logging.INFO)
 db = DBManager()
 
-# --- Helper Functions ---
+# --- Helpers ---
 async def send_typing(context, chat_id):
     try:
         await context.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
@@ -24,7 +24,7 @@ async def backup_to_admin(context):
                                        caption=f"🛡️ **NandaBot DB Backup**\nTime: {time.ctime()}")
     except: pass
 
-# --- Core Bot Handlers ---
+# --- Bot Handlers ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg_obj = update.message or update.business_message
     if not msg_obj: return
@@ -40,7 +40,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
           [InlineKeyboardButton("👤 My Account / History", callback_data='my_acc')],
           [InlineKeyboardButton("👨‍💻 Admin နှင့် တိုက်ရိုက်", url=ADMIN_LINK)]]
     
-    if user.id == ADMIN_ID:
+    if int(user.id) == int(ADMIN_ID):
         kb.append([InlineKeyboardButton("🛠 Admin Panel", callback_data='admin_panel')])
     
     await msg_obj.reply_text(msg, reply_markup=InlineKeyboardMarkup(kb), parse_mode='Markdown')
@@ -49,21 +49,20 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.message or update.business_message
     if not msg or not update.effective_user: return
     
-    user_id = update.effective_user.id
+    user_id = int(update.effective_user.id)
 
-    # Admin Text Update Logic
-    if user_id == ADMIN_ID and 'editing_key' in context.user_data and update.message:
+    # Admin Editing Logic
+    if user_id == int(ADMIN_ID) and 'editing_key' in context.user_data and update.message:
         key = context.user_data.pop('editing_key')
         db.update_setting(key, update.message.text)
-        await update.message.reply_text(f"✅ `{key}` ကို အောင်မြင်စွာ ပြင်ဆင်ပြီးပါပြီ။")
+        await update.message.reply_text(f"✅ `{key}` ကို ပြင်ဆင်ပြီးပါပြီ။")
         return
 
     # Skip Admin echo except business messages
-    if user_id == ADMIN_ID and not update.business_message: return
+    if user_id == int(ADMIN_ID) and not update.business_message: return
 
     await send_typing(context, update.effective_chat.id)
 
-    # Photo/Receipt Handler
     if msg.photo:
         await msg.reply_text("✅ ပြေစာရရှိပါသည်။ Admin အတည်ပြုရန် စောင့်ပေးပါ။ 🙏")
         await context.bot.send_photo(
@@ -78,7 +77,6 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # Trigger Keywords
     text = msg.text.lower() if msg.text else ""
     if any(x in text for x in ['atom', 'ပိတ်', 'မရဘူး']):
         await msg.reply_text(db.get_setting('atom_msg'))
@@ -90,7 +88,8 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    uid, data = query.from_user.id, query.data
+    uid = int(query.from_user.id)
+    data = query.data
     await query.answer()
 
     if data == 'admin_panel':
@@ -115,7 +114,7 @@ async def handle_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         kb = [[InlineKeyboardButton(f"{p['name']} - {p['price']} Ks", callback_data=f"confirm_buy_{p['id']}")] for p in prods]
         kb.append([InlineKeyboardButton("🔙 Back", callback_data='back_to_main')])
-        await query.edit_message_text("🏷️ **Product အမျိုးအစား ရွေးချယ်ပါ**", reply_markup=InlineKeyboardMarkup(kb), parse_mode='Markdown')
+        await query.edit_message_text("🏷️ **Product ရွေးချယ်ပါ**", reply_markup=InlineKeyboardMarkup(kb), parse_mode='Markdown')
 
     elif data.startswith('confirm_buy_'):
         pid = int(data.split('_')[-1])
@@ -136,7 +135,7 @@ async def handle_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
             xui = MultiXUI(SERVERS[p['server_key']])
             res = xui.create_user(f"n4_{uid}_{int(time.time())}", p['p_type'], p['gb'], p['days'])
             if res:
-                await query.message.reply_text(f"✅ **ဝယ်ယူမှု အောင်မြင်ပါသည်!**\n\n🌐 Sub: `{res['sub']}`\n🔑 Key: `{res['key']}`\n💰 လက်ကျန်: {db.get_balance(uid)} Ks")
+                await query.message.reply_text(f"✅ **အောင်မြင်ပါသည်!**\n\n🌐 Sub: `{res['sub']}`\n🔑 Key: `{res['key']}`\n💰 လက်ကျန်: {db.get_balance(uid)} Ks")
             else:
                 db.update_balance(uid, p['price'], "REFUND")
                 await query.message.reply_text("❌ Server Error! Credit ပြန်ဖြည့်ပေးထားပါသည်။")
@@ -153,18 +152,21 @@ async def handle_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(db.get_setting('payment_info'), parse_mode='Markdown')
 
     elif data.startswith('ap_'):
-        if uid != ADMIN_ID: return
+        if int(uid) != int(ADMIN_ID): 
+            await query.answer("❌ Admin သာ နှိပ်နိုင်သည်", show_alert=True)
+            return
+            
         parts = data.split('_')
-        target_id = int(parts[1]) if parts[1] != 'custom' else int(parts[2])
-        
         if 'custom' in data:
+            target_id = parts[2]
             await query.message.reply_text(f"👤 User `{target_id}` အတွက် Amount ရိုက်ထည့်ပါ-\n\n`/add {target_id} 5000`", parse_mode='Markdown')
             return
             
+        target_id = int(parts[1])
         amt = float(parts[2])
         db.update_balance(target_id, amt, "TOPUP_APPROVE")
         try:
-            await context.bot.send_message(target_id, f"✅ Credit **{amt} Ks** ဖြည့်သွင်းပြီးပါပြီ။\nလက်ရှိလက်ကျန်: **{db.get_balance(target_id)} Ks**", parse_mode='Markdown')
+            await context.bot.send_message(target_id, f"✅ Credit **{amt} Ks** ဖြည့်သွင်းပြီးပါပြီ။\n💰 လက်ရှိလက်ကျန်: **{db.get_balance(target_id)} Ks**", parse_mode='Markdown')
         except: pass
         await query.edit_message_caption(caption=f"{query.message.caption}\n\n✅ **Approved {amt} Ks!**")
         await backup_to_admin(context)
@@ -190,7 +192,7 @@ async def handle_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # --- Admin Commands ---
 async def admin_credit(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID: return
+    if int(update.effective_user.id) != int(ADMIN_ID): return
     try:
         if not context.args or len(context.args) < 2:
             await update.message.reply_text("💡 Usage: `/add UserID Amount`")
@@ -202,26 +204,23 @@ async def admin_credit(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except: pass
         await update.message.reply_text(f"✅ User `{uid}` ထံ `{amt} Ks` သွင်းပြီးပါပြီ။")
         await backup_to_admin(context)
-    except: await update.message.reply_text("❌ Format: `/add UserID Amount` (ဂဏန်းသီးသန့်ရိုက်ပါ)")
+    except: await update.message.reply_text("❌ Error: Format မှားနေပါသည်။")
 
 async def admin_add_p(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID: return
+    if int(update.effective_user.id) != int(ADMIN_ID): return
     try:
         a = [x.strip() for x in " ".join(context.args).split(',')]
         db.add_product(a[0], a[1], float(a[2]), a[3], a[4], int(a[5]), int(a[6]))
         await update.message.reply_text(f"✅ Product '{a[0]}' ထည့်ပြီးပါပြီ။")
     except: await update.message.reply_text("Format: `/add_prod Name, type, price, S1, vless, 100, 30`")
 
-# --- Main App ---
 def main():
     app = Application.builder().token(TOKEN).build()
-    
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("add", admin_credit))
     app.add_handler(CommandHandler("add_prod", admin_add_p))
     app.add_handler(CallbackQueryHandler(handle_cb))
     app.add_handler(MessageHandler((filters.TEXT | filters.PHOTO | filters.Sticker.ALL) & ~filters.COMMAND, handle_msg))
-    
     print("🚀 NandaBot V2.5 is running...")
     app.run_polling(drop_pending_updates=True)
 
