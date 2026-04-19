@@ -1,0 +1,5 @@
+# .gitignore 
+.env
+nandabot.db
+__pycache__/
+*.pyc
