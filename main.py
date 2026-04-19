@@ -18,37 +18,37 @@ def get_main_keyboard(uid):
     return InlineKeyboardMarkup(kb)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Business Chat ထဲမှာ စာပြန်ဖို့အတွက် business_message ကို ဦးစားပေးယူမယ်
     msg_obj = update.business_message or update.message
     if not msg_obj: return
-    
     user = update.effective_user
     bal = db.get_balance(user.id)
     msg = db.get_setting('welcome_msg').format(name=user.first_name, balance=bal)
     
-    # reply_text ကို သုံးရင် သူက ဘယ် Chat ထဲမှာ စာပို့ပို့ အဲ့ဒီ chat ထဲမှာပဲ ပြန်ဖြေမှာပါ
-    await msg_obj.reply_text(msg, reply_markup=get_main_keyboard(user.id), parse_mode='Markdown')
+    # Business Connection ရှိရင် အဲ့ဒီ ID နဲ့ ပို့ပေးရတယ်
+    bc_id = update.business_message.business_connection_id if update.business_message else None
+    await context.bot.send_message(
+        chat_id=msg_obj.chat_id,
+        text=msg,
+        reply_markup=get_main_keyboard(user.id),
+        business_connection_id=bc_id,
+        parse_mode='Markdown'
+    )
 
 async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.business_message or update.message
     if not msg or not update.effective_user: return
     user_id = int(update.effective_user.id)
+    bc_id = update.business_message.business_connection_id if update.business_message else None
 
-    # Admin Editing Logic
+    # Admin Text Editing
     if user_id == int(ADMIN_ID) and 'editing_key' in context.user_data:
         key = context.user_data.pop('editing_key')
         db.update_setting(key, msg.text)
         await msg.reply_text(f"✅ `{key}` ကို ပြင်ဆင်ပြီးပါပြီ။")
         return
 
-    # Admin ကိုယ်တိုင် စာရိုက်တာကို ignore လုပ်မယ် (Business message မဟုတ်ရင်)
-    if user_id == int(ADMIN_ID) and not update.business_message: return
-
     if msg.photo:
-        # User ရဲ့ Chat ထဲမှာပဲ "ပြေစာရရှိပါသည်" လို့ စာပြန်မယ်
         reply_msg = await msg.reply_text("✅ ပြေစာရရှိပါသည်။ Admin အတည်ပြုရန် စောင့်ပေးပါ။ 🙏")
-        
-        # Admin (နန္ဒ) ဆီကို Bot က သီးသန့် Noti လှမ်းပို့မယ်
         await context.bot.send_photo(
             chat_id=ADMIN_ID, 
             photo=msg.photo[-1].file_id, 
@@ -68,9 +68,33 @@ async def handle_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     uid = int(query.from_user.id)
     data = query.data
+    # Business Chat ကလာတဲ့ callback ဆိုရင် connection id ကို ယူထားရမယ်
+    bc_id = query.message.business_connection_id if query.message else None
+    
     await query.answer()
 
-    if data.startswith('ap_'):
+    # --- Navigation Logic ---
+    if data == 'topup_menu':
+        kb = [[InlineKeyboardButton("💳 5,000 Ks", callback_data='pay_5000')],
+              [InlineKeyboardButton("💳 10,000 Ks", callback_data='pay_10000')],
+              [InlineKeyboardButton("🔙 Back", callback_data='back_to_main')]]
+        await query.edit_message_text("ဖြည့်သွင်းလိုသော ပမာဏ ရွေးချယ်ပါ-", reply_markup=InlineKeyboardMarkup(kb))
+
+    elif data == 'my_acc':
+        bal = db.get_balance(uid)
+        kb = [[InlineKeyboardButton("📜 History", callback_data='view_history')], [InlineKeyboardButton("🔙 Back", callback_data='back_to_main')]]
+        await query.edit_message_text(f"👤 **Account Info**\n🆔 ID: `{uid}`\n💰 Balance: **{bal} Ks**", reply_markup=InlineKeyboardMarkup(kb), parse_mode='Markdown')
+
+    elif data == 'back_to_main':
+        bal = db.get_balance(uid)
+        msg = db.get_setting('welcome_msg').format(name=query.from_user.first_name, balance=bal)
+        await query.edit_message_text(msg, reply_markup=get_main_keyboard(uid), parse_mode='Markdown')
+
+    elif data.startswith('pay_'):
+        await query.edit_message_text(db.get_setting('payment_info'), parse_mode='Markdown')
+
+    # --- Approval Logic ---
+    elif data.startswith('ap_'):
         if int(uid) != int(ADMIN_ID): return
         parts = data.split('_')
         target_id, amt, user_msg_id = int(parts[1]), float(parts[2]), int(parts[3])
@@ -79,33 +103,28 @@ async def handle_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
             bal = db.get_balance(target_id)
             success_msg = f"✅ Credit **{amt} Ks** ဖြည့်သွင်းမှု အောင်မြင်ပါသည်။\n💰 လက်ရှိလက်ကျန်: **{bal} Ks**"
             
-            # User ရဲ့ chat ထဲမှာ ရှိနေတဲ့ "ပြေစာရရှိပါသည်" ဆိုတဲ့စာကို Menu အဖြစ် ပြောင်းပေးလိုက်မယ်
+            # User ဆီကို စာပို့တဲ့အခါ business_connection_id မပါရင် အပြင် Chat ထဲရောက်သွားတတ်လို့ bc_id ကို သုံးမယ်
             try:
-                await context.bot.edit_message_text(
-                    chat_id=target_id, 
-                    message_id=user_msg_id, 
-                    text=success_msg, 
-                    reply_markup=get_main_keyboard(target_id), 
+                await context.bot.send_message(
+                    chat_id=target_id,
+                    text=success_msg,
+                    reply_markup=get_main_keyboard(target_id),
                     parse_mode='Markdown'
                 )
-            except:
-                # Edit မရရင် (ဥပမာ User က chat list ထဲမှာ မဟုတ်ရင်) တိုက်ရိုက် message အသစ်ပို့မယ်
-                await context.bot.send_message(target_id, success_msg, reply_markup=get_main_keyboard(target_id), parse_mode='Markdown')
-            
-            # Admin ဆီက Noti message ကို caption ပြင်မယ်
+            except: pass
             await query.edit_message_caption(caption=f"{query.message.caption}\n\n✅ **Approved {amt} Ks!**")
 
-    # (ကျန်တဲ့ Navigation Logic တွေက အရင်အတိုင်းပါပဲ...)
-    elif data == 'back_to_main':
-        bal = db.get_balance(uid)
-        msg = db.get_setting('welcome_msg').format(name=query.from_user.first_name, balance=bal)
-        await query.edit_message_text(msg, reply_markup=get_main_keyboard(uid), parse_mode='Markdown')
+    # (Buy logic... same as before)
+    elif data == 'user_buy':
+        prods = db.get_products()
+        kb = [[InlineKeyboardButton(f"{p['name']} - {p['price']} Ks", callback_data=f"confirm_buy_{p['id']}")] for p in prods]
+        kb.append([InlineKeyboardButton("🔙 Back", callback_data='back_to_main')])
+        await query.edit_message_text("🏷️ **Product ရွေးချယ်ပါ**", reply_markup=InlineKeyboardMarkup(kb), parse_mode='Markdown')
 
 def main():
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(handle_cb))
-    # filters.ChatType.BUSINESS ကို သုံးပြီး Business Chat တွေကို ပိုဦးစားပေးမယ်
     app.add_handler(MessageHandler((filters.TEXT | filters.PHOTO) & ~filters.COMMAND, handle_msg))
     app.run_polling(drop_pending_updates=True)
 
