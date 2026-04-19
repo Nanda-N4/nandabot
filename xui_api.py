@@ -17,15 +17,14 @@ class MultiXUI:
 
     def create_user(self, email, p_type, gb, days):
         if not self.login(): return None
-        inbound_id = self.cfg['vless_id'] if p_type == 'vless' else self.cfg['ss_id']
-        uid = str(uuid.uuid4())
-        sid = str(uuid.uuid4()).replace('-', '')[:16]
+        in_id = self.cfg['vless_id'] if p_type == 'vless' else self.cfg['ss_id']
+        uid, sid = str(uuid.uuid4()), str(uuid.uuid4()).replace('-', '')[:16]
         expiry = int((time.time() + (days * 86400)) * 1000) if days > 0 else 0
         
-        payload = {"id": inbound_id, "settings": json.dumps({"clients": [{"id": uid, "email": email, "totalGB": gb*1073741824, "expiryTime": expiry, "enable": True, "subId": sid}]})}
+        payload = {"id": in_id, "settings": json.dumps({"clients": [{"id": uid, "email": email, "totalGB": gb*1073741824, "expiryTime": expiry, "enable": True, "subId": sid}]})}
         try:
             self.session.post(f"{self.cfg['url']}/panel/api/inbounds/addClient", data=payload, verify=False)
-            res = self.session.get(f"{self.cfg['url']}/panel/api/inbounds/get/{inbound_id}", verify=False).json().get("obj")
+            res = self.session.get(f"{self.cfg['url']}/panel/api/inbounds/get/{in_id}", verify=False).json().get("obj")
             port = res.get("port")
             if p_type == 'vless':
                 stream = json.loads(res.get("streamSettings"))
