@@ -1,30 +1,9 @@
 # products.py
 VPN_PRODUCTS = {
-    'n4_vip': {
-        'name': "🚀 N4 VIP PRO (App)",
-        'type': 'manual',
-        'plans': [
-            {'label': "💎 1 Month - 8,000 Ks", 'price': 8000, 'code': 'N4_1M'},
-            {'label': "💎 1 Year - 75,000 Ks", 'price': 75000, 'code': 'N4_1Y'},
-        ]
-    },
-    'v2ray_auto': {
-        'name': "📡 V2Ray Auto Key",
-        'type': 'auto',
-        'server_key': 'S1',
-        'p_type': 'vless',
-        'plans': [
-            {'label': "🔸 50GB (No Exp) - 5,000 Ks", 'price': 5000, 'gb': 50, 'days': 0},
-            {'label': "🔸 100GB (1 Month) - 8,000 Ks", 'price': 8000, 'gb': 100, 'days': 30},
-        ]
-    },
-    'outline_auto': {
-        'name': "🔑 Outline Shadowsocks",
-        'type': 'auto',
-        'server_key': 'S1',
-        'p_type': 'ss',
-        'plans': [
-            {'label': "🔸 100GB (No Exp) - 8,000 Ks", 'price': 8000, 'gb': 100, 'days': 0},
-        ]
-    }
+    'n4_vip': {'name': "🚀 N4 VIP PRO", 'type': 'manual', 'price': 8000},
+    'sg_v2ray': {'name': "🇸🇬 SG V2Ray (100GB)", 'type': 'auto', 'server_key': 'S1', 'p_type': 'vless', 'price': 8000, 'gb': 100, 'days': 30},
+    'sg_outline': {'name': "🇸🇬 SG Outline (100GB)", 'type': 'auto', 'server_key': 'S1', 'p_type': 'ss', 'price': 8000, 'gb': 100, 'days': 0},
+    'jp_v2ray': {'name': "🇯🇵 JP V2Ray (100GB)", 'type': 'auto', 'server_key': 'S2', 'p_type': 'vless', 'price': 8000, 'gb': 100, 'days': 30},
+    'jp_outline': {'name': "🇯🇵 JP Outline (100GB)", 'type': 'auto', 'server_key': 'S2', 'p_type': 'ss', 'price': 8000, 'gb': 100, 'days': 0},
+    'starlink_v2ray': {'name': "📡 Starlink V2Ray", 'type': 'auto', 'server_key': 'S1', 'p_type': 'vless', 'price': 24000, 'gb': 300, 'days': 30}
 }
