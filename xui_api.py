@@ -1,4 +1,3 @@
-# xui_api.py
 import requests, json, uuid, time, base64, urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
